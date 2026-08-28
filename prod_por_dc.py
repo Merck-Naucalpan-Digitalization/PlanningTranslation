@@ -13,6 +13,8 @@ if __name__ == "__main__":
     run()
 
 #Merge de datos y eliminacion de SKU
+PROD_DC_2['SKUMERCK'] = PROD_DC_2['SKUMERCK'].astype(str).str.strip()
+FCST_month['SKUMERCK'] = FCST_month['SKUMERCK'].astype(str).str.strip()
 PROD_DC_2 = PROD_DC_2.merge(FCST_month, on='SKUMERCK', how='left')
 PROD_DC_2.drop(['SKUMERCK'], axis=1, inplace=True)
 

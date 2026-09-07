@@ -9,6 +9,8 @@ hilo aparte para que la ventana no se congele y muestra la bitacora.
 Requisitos: pip install customtkinter pandas openpyxl
 """
 
+#importaciones necesarias
+import traceback 
 import os
 import queue
 import subprocess
@@ -16,20 +18,23 @@ import sys
 import threading
 from pathlib import Path
 from tkinter import filedialog, messagebox
-
 import customtkinter as ctk
 import pandas as pd
-
+#importacion de funcione sy varibles de la logica. 
 import planning_balanceo as pb
 
+#colores de la interfaz
 ctk.set_appearance_mode("system")
 ctk.set_default_color_theme("blue")
 
+#Joe:variables iniciales en 0
+#Joe: sospecho que estas variables son de las clases de lectura
+    #Joe:tipos excel es solo para el filtro de tipos de archivos que permite 
+    #Joe: leer en la seleccion de archivo
 TIPOS_EXCEL = [("Archivos de Excel", "*.xlsx *.xlsm *.xls")]
 SIN_ARCHIVO = "Ningun archivo seleccionado"
 SIN_HOJA = "Selecciona una hoja"
 TODOS_LOS_MESES = "Horizonte completo"
-
 
 class SelectorExcel(ctk.CTkFrame):
     """Bloque para elegir un archivo de Excel y una de sus hojas."""
@@ -42,14 +47,13 @@ class SelectorExcel(ctk.CTkFrame):
         self.hoja = None
 
         self.grid_columnconfigure(1, weight=1)
-
         ctk.CTkLabel(self, text=titulo, font=ctk.CTkFont(size=13, weight="bold")).grid(
             row=0, column=0, columnspan=3, sticky="w", padx=12, pady=(10, 4))
+        #Joe:configuracion del boton para seleccionar archivo
 
         self.btn = ctk.CTkButton(self, text="Examinar...", width=110,
                                  command=self.elegir_archivo)
         self.btn.grid(row=1, column=0, padx=(12, 8), pady=(0, 12))
-
         self.lbl = ctk.CTkLabel(self, text=SIN_ARCHIVO, anchor="w",
                                 text_color=("gray40", "gray60"))
         self.lbl.grid(row=1, column=1, sticky="ew", padx=(0, 8), pady=(0, 12))
@@ -60,19 +64,20 @@ class SelectorExcel(ctk.CTkFrame):
         self.combo.grid(row=1, column=2, padx=(0, 12), pady=(0, 12))
 
     def elegir_archivo(self):
+        #Joe: esta es al funcion que selecciona el archivo en una segunda ventana
         ruta = filedialog.askopenfilename(filetypes=TIPOS_EXCEL)
         if not ruta:
             return
-
         try:
             with pd.ExcelFile(ruta) as libro:
+                #Joe: la variable hojas guarda todas las hojas posibles para anlisar. 
                 hojas = list(libro.sheet_names)
         except Exception as error:
             messagebox.showerror("No se pudo leer el archivo",
                                  f"{Path(ruta).name}\n\n{error}")
             return
 
-        # Al cambiar de archivo, la hoja anterior deja de valer.
+        # Joe:Al cambiar de archivo, la hoja anterior deja de valer.
         self.ruta = Path(ruta)
         self.hoja = None
         self.lbl.configure(text=self.ruta.name, text_color=("gray10", "gray90"))
@@ -120,7 +125,7 @@ class AppPlanning(ctk.CTk):
         self._construir_bitacora()
         self._construir_acciones()
 
-        # El modulo de calculo manda sus mensajes a la cola en vez de la consola.
+        # Joe:El modulo de calculo manda sus mensajes a la cola en vez de la consola.
         pb.log = self.mensajes.put
         self._vaciar_cola()
         self._revisar_si_puede_ejecutar()
@@ -145,7 +150,9 @@ class AppPlanning(ctk.CTk):
         ctk.CTkLabel(marco, text="3. Mes del ejercicio y parametros",
                      font=ctk.CTkFont(size=13, weight="bold")).grid(
             row=0, column=0, columnspan=6, sticky="w", padx=12, pady=(10, 4))
-
+        #Joe:seccion que selecciona el mes a analizar, si se deja solo se queda Horizonte completo.
+        #Joe: la variable TODOS_LOS_MESES es la que dicta que exactamente se esta haciendo. 
+        #Joe: ahi se guarda la decision
         ctk.CTkLabel(marco, text="Mes a analizar").grid(row=1, column=0, padx=(12, 6),
                                                         pady=(0, 10), sticky="e")
         self.combo_mes = ctk.CTkComboBox(marco, values=[TODOS_LOS_MESES], width=180,
@@ -158,11 +165,8 @@ class AppPlanning(ctk.CTk):
                      justify="left", font=ctk.CTkFont(size=11),
                      text_color=("gray40", "gray60")).grid(
             row=1, column=3, columnspan=3, padx=(4, 12), pady=(0, 10), sticky="w")
-
+        #Joe: aqui es donde importa las variables limitantes y tamaño de lote a el codigo
         self.ent_lote = self._campo(marco, "Jeringas por lote", 0, pb.TAMANO_LOTE, 110)
-        self.ent_tolerancia = self._campo(marco, "Tolerancia (%)", 2,
-                                          pb.TOLERANCIA * 100, 80)
-        self.ent_decimales = self._campo(marco, "Decimales", 4, pb.DECIMALES, 70)
 
     def _campo(self, marco, texto, columna, valor, ancho):
         """Etiqueta + caja de texto en la fila de parametros."""
@@ -185,7 +189,8 @@ class AppPlanning(ctk.CTk):
         self.btn_guardar = ctk.CTkButton(marco, text="Guardar como...", width=110,
                                          command=self.elegir_salida)
         self.btn_guardar.grid(row=1, column=0, padx=(12, 8), pady=(0, 12))
-
+        # Joe: el label solo muestra si no hay archivo o el nombre del archivo, 
+        # Joe: pudiera ser universal para las lecturas de los archivos. 
         self.lbl_salida = ctk.CTkLabel(marco, text="Ningun archivo definido",
                                        anchor="w", text_color=("gray40", "gray60"))
         self.lbl_salida.grid(row=1, column=1, sticky="ew", padx=(0, 12), pady=(0, 12))
@@ -209,7 +214,7 @@ class AppPlanning(ctk.CTk):
         marco = ctk.CTkFrame(self, fg_color="transparent")
         marco.grid(row=5, column=0, sticky="ew", padx=16, pady=(0, 8))
         marco.grid_columnconfigure(1, weight=1)
-
+        #Joe: establece la funcion del boton de ejecutar, se llama ejecutar. 
         self.btn_ejecutar = ctk.CTkButton(marco, text="Ejecutar balanceo", height=40,
                                           font=ctk.CTkFont(size=14, weight="bold"),
                                           state="disabled", command=self.ejecutar)
@@ -224,7 +229,6 @@ class AppPlanning(ctk.CTk):
         self.btn_abrir.grid(row=0, column=2, sticky="e")
 
     # -- Bitacora --------------------------------------------------------------
-
     def _vaciar_cola(self):
         """Pasa a la pantalla lo que dejo el hilo de calculo en la cola.
 
@@ -251,6 +255,7 @@ class AppPlanning(ctk.CTk):
                 self.meses = pb.listar_meses(self.sel_fcst.ruta, self.sel_fcst.hoja)
             except Exception as error:
                 messagebox.showwarning("No se pudieron leer los meses", str(error))
+                self.mensajes.put(traceback.format_exc())   
 
         if self.meses:
             self.combo_mes.configure(values=[TODOS_LOS_MESES] + self.meses,
@@ -296,21 +301,18 @@ class AppPlanning(ctk.CTk):
         """Valida las cajas de parametros. Regresa un dict o None si hay error."""
         try:
             lote = int(float(self.ent_lote.get().replace(",", "")))
-            tolerancia = float(self.ent_tolerancia.get().replace(",", ".")) / 100
-            decimales = int(self.ent_decimales.get())
         except ValueError:
             messagebox.showerror("Parametros invalidos",
-                                 "Lote, tolerancia y decimales deben ser numericos.")
+                                 "Lote debe ser numericos.")
             return None
 
-        if lote <= 0 or decimales < 0 or not 0 <= tolerancia < 0.5:
+        if lote <= 0:
             messagebox.showerror(
                 "Parametros invalidos",
-                "El lote debe ser mayor a cero, los decimales no pueden ser "
-                "negativos y la tolerancia debe estar entre 0 y 50 %.")
+                "El lote debe ser mayor a cero.")
             return None
 
-        return {"lote": lote, "tolerancia": tolerancia, "decimales": decimales}
+        return {"lote": lote}
 
     # -- Ejecucion en segundo plano --------------------------------------------
 
@@ -336,6 +338,7 @@ class AppPlanning(ctk.CTk):
         except Exception as error:
             self.mensajes.put(f"ERROR: {error}")
             self.after(0, self._al_fallar, error)
+            self.mensajes.put(traceback.format_exc())   
             return
         self.after(0, self._al_terminar, resultado)
 
@@ -346,8 +349,6 @@ class AppPlanning(ctk.CTk):
         messagebox.showinfo(
             "Balanceo terminado",
             f"Meses procesados: {len(meses)} ({meses[0]} a {meses[-1]})\n"
-            f"Lotes en DC1: {resultado['lotes_dc1']}\n"
-            f"Lotes en DC2: {resultado['lotes_dc2']}\n\n"
             f"Archivo generado:\n{self.ruta_salida}")
 
     def _al_fallar(self, error):
@@ -364,8 +365,8 @@ class AppPlanning(ctk.CTk):
         self.btn_guardar.configure(state=estado)
         self.combo_mes.configure(
             state="disabled" if activo or not self.meses else "readonly")
-        for entrada in (self.ent_lote, self.ent_tolerancia, self.ent_decimales):
-            entrada.configure(state=estado)
+        self.ent_lote.configure(state=estado)
+
 
         if activo:
             self.btn_ejecutar.configure(state="disabled", text="Procesando...")

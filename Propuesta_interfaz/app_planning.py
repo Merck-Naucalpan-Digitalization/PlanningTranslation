@@ -8,8 +8,6 @@ hilo aparte para que la ventana no se congele y muestra la bitacora.
 
 Requisitos: pip install customtkinter pandas openpyxl
 """
-
-#importaciones necesarias
 import traceback 
 import os
 import queue
@@ -20,17 +18,12 @@ from pathlib import Path
 from tkinter import filedialog, messagebox
 import customtkinter as ctk
 import pandas as pd
-#importacion de funcione sy varibles de la logica. 
+#importacion de funciones y varibles de la logica. 
 import planning_balanceo as pb
-
 #colores de la interfaz
 ctk.set_appearance_mode("system")
 ctk.set_default_color_theme("blue")
 
-#Joe:variables iniciales en 0
-#Joe: sospecho que estas variables son de las clases de lectura
-    #Joe:tipos excel es solo para el filtro de tipos de archivos que permite 
-    #Joe: leer en la seleccion de archivo
 TIPOS_EXCEL = [("Archivos de Excel", "*.xlsx *.xlsm *.xls")]
 SIN_ARCHIVO = "Ningun archivo seleccionado"
 SIN_HOJA = "Selecciona una hoja"
@@ -50,7 +43,6 @@ class SelectorExcel(ctk.CTkFrame):
         ctk.CTkLabel(self, text=titulo, font=ctk.CTkFont(size=13, weight="bold")).grid(
             row=0, column=0, columnspan=3, sticky="w", padx=12, pady=(10, 4))
         #Joe:configuracion del boton para seleccionar archivo
-
         self.btn = ctk.CTkButton(self, text="Examinar...", width=110,
                                  command=self.elegir_archivo)
         self.btn.grid(row=1, column=0, padx=(12, 8), pady=(0, 12))

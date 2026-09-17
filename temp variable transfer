@@ -1,0 +1,76 @@
+import pandas as pd
+import numpy as np
+jeringas = 115_200
+detalle=[]
+agg_dict = {col: 'sum' for col in catalogo.columns if col not in ['Nombre granel', 'Linea Granel 1', 'Linea Granel 2']}
+
+logbalanceo=[]
+# paso 1 id por LINEA POR FAMILIA POR NOMBRE DEL PRODUCTO
+#demanda por familia
+# Crea una copia de la fila del producto en dc2 sin demanda todavia. 
+
+# Filtra las filas donde Linea Granel 2 es True
+new_rows = detalle[detalle['Linea Granel 2'] == True][['Nombre granel', 'Linea Granel 1', 'Linea Granel 2', 'SKUMERCK','Description'] + list(agg_dict.keys())].copy()
+
+# Establece los valores requeridos en las nuevas filas
+detalle.loc[new_rows.index, list(agg_dict.keys())] = 0
+new_rows['Linea Granel 1'] = False
+
+# Agrega las nuevas filas al DataFrame original
+detalle = pd.concat([detalle, new_rows], ignore_index=True)
+#Se reduce de dos columnas a una para identificar DC
+detalle['Linea Granel 1'] = np.where(
+    (detalle['Linea Granel 1'] == 0) & (detalle['Linea Granel 2'] == 1),
+    'DC2',
+    'DC1')
+detalle.drop(['Linea Granel 2'], axis=1, inplace=True)
+detalle = detalle.rename(columns={'Linea Granel 1': 'DC'})
+
+log_balanceo = pd.DataFrame(columns=['SKUMERCK', 'Description', 'Nombre granel', 'DC', 'fecha', 'log'] + list(agg_dict.keys()))
+
+prod_con_dc2 = detalle.loc[detalle['DC'] == 'DC2', 'SKUMERCK'].unique()
+# Balanceo, en casos que detecte que la familia con DC2 tiene residuo mando todo ese residuo a DC1 de esa misma familia
+
+for prod in prod_con_dc2:
+    for col in agg_dict.keys():
+        mask_dc2 = (detalle['SKUMERCK'] == prod) & (detalle['DC'] == 'DC2')
+        sku_dc2 = detalle.loc[mask_dc2, col].values[0]
+        if sku_dc2 % jeringas != 0:
+            residue = sku_dc2 % jeringas      
+            #Balanceo por producto en una familia:
+            ##  busca el producto que pueda cumplir el minimo de jeringas de residuo para pasarlo 
+            #   a dc1 y balancear dc2. Utiliza el residuo de un dc2 maximizado por productos y no
+            #   por lineas   
+            candidates = detalle[
+                (detalle[col] > residue) & 
+                (detalle['SKUMERCK'] == prod) &
+                (detalle['DC'] == 'DC2')
+            ][col]
+            if candidates.empty:
+                continue
+            min_idx = candidates.idxmin()
+            # Se resta el residuo de la fila para balancear DC2
+            before_dc2 = detalle.loc[[min_idx]] 
+            detalle.loc[min_idx, col] = detalle.loc[min_idx, col] - residue    
+            after_dc2 = detalle.loc[[min_idx]].copy()           
+            # Find the same SKU but with DC1
+            dc1_mask = (detalle['SKUMERCK'] == prod) & (detalle['DC'] == 'DC1')
+            before_dc1 = detalle.loc[dc1_mask].copy()
+            detalle.loc[dc1_mask, col] += residue
+            after_dc1 = detalle.loc[dc1_mask].copy()
+
+            for df, label in zip([before_dc2, before_dc1, after_dc2, after_dc1],
+                                 ['before_dc2', 'before_dc1', 'after_dc2', 'after_dc1']):
+                df['log'] = label
+                df['fecha'] = col
+            # Append all to log
+            log_balanceo = pd.concat([log_balanceo, before_dc2, before_dc1, after_dc2, after_dc1], ignore_index=True)
+
+#prod grouped seria el equivalenta  a la tabla que aparece en la hoja de otes por familia en el excel
+
+# la idea es que esta tabla reemplace la vieja, porque el balanceo ya lo esta haciendo por producto y no por granel
+# y la tabla vieja aparezca en detalle sku, qu easi seria el balanceo, por sku por producto
+prod_grouped = detalle.copy()
+prod_grouped = prod_grouped.drop(id_cols, axis=1)  # remove inplace=True
+prod_grouped = prod_grouped.groupby(['Nombre granel', 'DC'], as_index=False).agg(agg_dict)
+prod_grouped[list(agg_dict.keys())] = prod_grouped[list(agg_dict.keys())] / jeringas

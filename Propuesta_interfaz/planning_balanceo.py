@@ -214,13 +214,11 @@ def duplicar_por_dc(detalle, meses):
 def balancear_por_producto(detalle, meses, lote=TAMANO_LOTE):
     """Balanceo por producto: el remanente de cada SKU en DC2 se pasa al
     mismo SKU en DC1.
-
     Por cada SKU con capacidad en DC2 y cada mes:
         residuo = demanda_DC2 % lote
         DC2 se queda con lotes enteros y DC1 (mismo SKU) absorbe el residuo.
     Si el SKU no tiene fila en DC1 (no se puede fabricar ahi), el residuo se
     queda en DC2 sin transferir: no todo lo que sobra en DC2 se puede mover.
-
     Regresa (detalle_balanceado, log_balanceo):
         - detalle_balanceado: el detalle por SKU y DC ya con el remanente
           movido, en piezas.
@@ -252,14 +250,87 @@ def balancear_por_producto(detalle, meses, lote=TAMANO_LOTE):
                 before_dc1 = expandido.loc[dc1_mask].copy()
                 expandido.loc[dc1_mask, mes] += residuo
                 after_dc1 = expandido.loc[dc1_mask].copy()
+
                 columnas_a_cero = [m for m in meses if m != mes]
                 for df, label in zip([before_dc2, before_dc1, after_dc2, after_dc1],
-                    ['before_dc2', 'before_dc1', 'after_dc2', 'after_dc1']):
+                    ['1. before_dc2', '1. before_dc1', '1. after_dc2', '1. after_dc1']):
                     df['log'] = label
                     df['fecha'] = mes
                     df[columnas_a_cero] = 0
                 # Append all to log
                 log_balanceo = pd.concat([log_balanceo, before_dc2, before_dc1, after_dc2, after_dc1], ignore_index=True)
+    '''for mes in meses:
+        for grupo in expandido.groupby("Nombre granel"):
+            filas_dc2 = expandido.loc[filas_dc2, mes].sum()
+            if filas_dc2.sum()%lote != 0:
+                faltante_dc2 = lote -(filas_dc2.sum()%lote)
+                transport=grupo[(expandido['DC'] == 'DC1') & (expandido[mes] > faltante_dc2) & (prod_con_dc2['SKUMERCK'] == expandido['SKUMERCK'])][mes].idxmin()
+                if not transport.empty:
+                    expandido.loc[transport, 'SKUMERCK'].iloc[0]-faltante_dc2
+                    expandido.loc[transport, 'SKUMERCK'].iloc[0]+faltante_dc2
+                    pass
+                '''
+    
+    for mes in meses:
+        for familia, grupo in expandido.groupby("Nombre granel"):
+            #identifica las posibles oportunidades de balanceo para completar esa familia en su contra parte
+            for dc_receptor in ["DC2", "DC1"]:
+                candidatos = pd.DataFrame()
+                filas = grupo.index[grupo["DC"] == dc_receptor]
+                total = expandido.loc[filas, mes].sum()
+                residuo = total % lote
+                faltante= lote - residuo
+                if dc_receptor == "DC2":
+                    if filas.empty:
+                        break
+                    if residuo == 0:
+                        break
+                    dc_donante= "DC1"
+                else:
+                    if residuo == 0:
+                        continue
+                    dc_donante= "DC2"
+                skus= set(grupo.loc[grupo["DC"] == dc_receptor, "SKUMERCK"])
+                candidatos= grupo[
+                    (grupo["DC"] == dc_donante)
+                    & (grupo["SKUMERCK"].isin(skus))
+                    & (grupo[mes] >= faltante)
+                    & ((grupo[mes] / lote )< 1)
+                    & (grupo[mes] != 115200)]
+                if not candidatos.empty:
+                    break
+            if candidatos.empty:
+                    continue
+            else:
+                if (grupo.loc[grupo["DC"] == "DC2", mes].sum() % lote) == 0:
+                    continue
+                else:
+                    idx_donante = candidatos[mes].idxmin()
+                    sku_donante = expandido.loc[idx_donante, "SKUMERCK"]
+                    idx_receptor = grupo.index[
+                        (grupo["DC"] == dc_receptor) & (grupo["SKUMERCK"] == sku_donante)
+                    ][0]
+                    before_donante = expandido.loc[[idx_donante]].copy()
+                    before_receptor = expandido.loc[[idx_receptor]].copy()
+                    expandido.loc[idx_donante, mes] -= faltante
+                    expandido.loc[idx_receptor, mes] += faltante
+                    after_donante = expandido.loc[[idx_donante]].copy()
+                    after_receptor = expandido.loc[[idx_receptor]].copy()
+
+                    columnas_a_cero = [m for m in meses if m != mes]
+                    for df, label in zip(
+                        [before_receptor, before_donante, after_receptor, after_donante],
+                        [f"2. before_{dc_receptor.lower()}", f"2. before_{dc_donante.lower()}",
+                        f"2. after_{dc_receptor.lower()}", f"2. after_{dc_donante.lower()}"]
+                    ):
+                        df["log"] = label
+                        df["fecha"] = mes
+                        df[columnas_a_cero] = 0
+
+                    log_balanceo = pd.concat(
+                        [log_balanceo, before_receptor, before_donante, after_receptor, after_donante],
+                        ignore_index=True)
+        
     for mes in meses:
         if log_balanceo[mes].sum() == 0:
             log_balanceo = log_balanceo.drop(columns=[mes])
@@ -281,10 +352,9 @@ def consolidar_por_producto(detalle_balanceado, meses, lote=TAMANO_LOTE):
     seguir mostrando un residuo en DC2 cuando ese residuo pertenece a un
     producto que no se puede fabricar en DC1.
     """
-    agrupado = detalle_balanceado.drop(columns=[id_cols[0]] + [
-        c for c in (id_cols[1], "Units") if c in detalle_balanceado.columns
-    ]).groupby(["Nombre granel", "DC"], as_index=False)[meses].sum()
-    agrupado[meses] = agrupado[meses] / lote
+    agrupado = detalle_balanceado.drop(id_cols, axis=1)  
+    agrupado= agrupado.groupby(['Nombre granel', 'DC'], as_index=False)[meses].sum()
+    agrupado[meses] = agrupado[meses]/lote
     return agrupado
 # ==============================================================================
 # 5. Exportacion a Excel

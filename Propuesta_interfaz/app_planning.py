@@ -20,6 +20,7 @@ import customtkinter as ctk
 import pandas as pd
 #importacion de funciones y varibles de la logica. 
 import planning_balanceo as pb
+import plan_produccion as pp
 #colores de la interfaz
 ctk.set_appearance_mode("system")
 ctk.set_default_color_theme("blue")

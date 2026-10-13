@@ -44,7 +44,11 @@ from itertools import combinations
 from pathlib import Path
 
 import pandas as pd
+<<<<<<< HEAD
 import planning_balanceo as pb
+=======
+
+>>>>>>> 8741c55b041814364d8bce9cbf31eaa247600d0d
 import planning_produccion as pp
 
 # ---------------------------------------------------------------------------
@@ -83,8 +87,17 @@ RELATION_DESCONOCIDA = 40
         # peor caso cuando un par no esta en MD
 LINEAS_ACONDI = ("L2", "L4")
 N_EXACTO = 10                    # hasta este tamano se busca el orden optimo
+<<<<<<< HEAD
 id_cols = pb.id_cols
 
+=======
+
+# Nombres de columna que comparte con los otros modulos
+COL_SKU = pp.COL_SKU             # "SKUMERCK"
+COL_DESC = pp.COL_DESC           # "Description"
+COL_LINEA = "Linea"
+COL_GRANEL = pp.COL_GRANEL       # "Nombre granel"
+>>>>>>> 8741c55b041814364d8bce9cbf31eaa247600d0d
 HOJA_MD = "MD"
 HOJA_MD_ENCABEZADO = 2           # la hoja MD trae dos renglones de titulo
 FORMATO_MES = pp.FORMATO_MES
@@ -92,7 +105,11 @@ FORMATO_MES = pp.FORMATO_MES
 # Atributos de formato que definen la relation entre dos SKU
 COLS_FORMATO = ["Cantidad de Blisters", "Medida de instructivo",
                 "Medida de blister", "Medida de estuche"]
+<<<<<<< HEAD
 COLS_MD = [id_cols[0]] + COLS_FORMATO + ["familia", id_cols[4]]
+=======
+COLS_MD = [COL_SKU] + COLS_FORMATO + ["familia", COL_LINEA]
+>>>>>>> 8741c55b041814364d8bce9cbf31eaa247600d0d
 
 # Como viene marcada cada linea en la hoja MD
 MARCAS_LINEA = {"L2": ("L2", "L2/L4"), "L4": ("L4", "L2/L4")}
@@ -111,10 +128,18 @@ COLOR_FIN_SEMANA = "BFBFBF"      # gris oscuro: la linea esta detenida
 ETIQUETA_CAMBIO = "Cambio de formato"
 ETIQUETA_FIN_SEMANA = "Fin de semana"
 
+<<<<<<< HEAD
 COLS_CRONOGRAMA = ["Nombre", id_cols[0], "Secuencia", "Jeringas", "Lotes",
                    "Horas", "Relation previa",
                    "Fecha y hora de inicio", "Fecha y hora de finalizacion"]
 
+=======
+COLS_CRONOGRAMA = ["Nombre", COL_SKU, "Secuencia", "Jeringas", "Lotes",
+                   "Horas", "Relation previa",
+                   "Fecha y hora de inicio", "Fecha y hora de finalizacion"]
+
+
+>>>>>>> 8741c55b041814364d8bce9cbf31eaa247600d0d
 def log(mensaje):
     """Unico punto de salida de mensajes. La app de escritorio la reemplaza."""
     print(mensaje)
@@ -131,7 +156,11 @@ def leer_md(ruta_catalogo, hoja=HOJA_MD, encabezado=HOJA_MD_ENCABEZADO):
     Regresa (md, md_por_linea) donde md_por_linea es {'L2': df, 'L4': df}.
     """
     md = pd.read_excel(Path(ruta_catalogo), sheet_name=hoja, header=encabezado)
+<<<<<<< HEAD
     md = md.rename(columns={"SKU": id_cols[0]})
+=======
+    md = md.rename(columns={"SKU": COL_SKU})
+>>>>>>> 8741c55b041814364d8bce9cbf31eaa247600d0d
 
     faltantes = [c for c in COLS_MD if c not in md.columns]
     if faltantes:
@@ -140,6 +169,7 @@ def leer_md(ruta_catalogo, hoja=HOJA_MD, encabezado=HOJA_MD_ENCABEZADO):
             f"Revise que el encabezado este en el renglon {encabezado + 1}.")
 
     md = md[COLS_MD].copy()
+<<<<<<< HEAD
     md[id_cols[0]] = md[id_cols[0]].astype(str).str.strip()
     md = md.dropna(subset=[id_cols[0]])
     md = md[~md[id_cols[0]].isin(("", "nan", "None"))]
@@ -153,6 +183,21 @@ def leer_md(ruta_catalogo, hoja=HOJA_MD, encabezado=HOJA_MD_ENCABEZADO):
         md_por_linea[linea] = bloque.reset_index(drop=True)
 
     compartidos = set(md_por_linea["L2"][id_cols[0]]) & set(md_por_linea["L4"][id_cols[0]])
+=======
+    md[COL_SKU] = md[COL_SKU].astype(str).str.strip()
+    md = md.dropna(subset=[COL_SKU])
+    md = md[~md[COL_SKU].isin(("", "nan", "None"))]
+    md = md[md["familia"].astype(str).str.strip() == FAMILIA_DC]
+    md[COL_LINEA] = md[COL_LINEA].astype(str).str.strip()
+    md = md.sort_values(COL_SKU).reset_index(drop=True)
+
+    md_por_linea = {}
+    for linea, marcas in MARCAS_LINEA.items():
+        bloque = md[md[COL_LINEA].isin(marcas)].copy()
+        md_por_linea[linea] = bloque.reset_index(drop=True)
+
+    compartidos = set(md_por_linea["L2"][COL_SKU]) & set(md_por_linea["L4"][COL_SKU])
+>>>>>>> 8741c55b041814364d8bce9cbf31eaa247600d0d
     log(f"MD: {len(md)} SKU de familia {FAMILIA_DC} | "
         f"L2: {len(md_por_linea['L2'])} | L4: {len(md_por_linea['L4'])} | "
         f"compartidos: {len(compartidos)}")
@@ -169,7 +214,11 @@ def calcular_relaciones(md_por_linea):
     """
     pesos = {}
     for linea, tabla in md_por_linea.items():
+<<<<<<< HEAD
         atributos = tabla.set_index(id_cols[0])[COLS_FORMATO]
+=======
+        atributos = tabla.set_index(COL_SKU)[COLS_FORMATO]
+>>>>>>> 8741c55b041814364d8bce9cbf31eaa247600d0d
         atributos = atributos[~atributos.index.duplicated(keep="first")]
         filas = []
         for sku_1, sku_2 in combinations(atributos.index, 2):
@@ -247,6 +296,7 @@ def preparar_demanda(forecast):
     if not meses:
         raise ValueError("El forecast balanceado no trae columnas de mes.")
 
+<<<<<<< HEAD
     tabla[id_cols[0]] = tabla[id_cols[0]].astype(str).str.strip()
     for mes in meses:
         tabla[mes] = pd.to_numeric(tabla[mes], errors="coerce").fillna(0.0)
@@ -261,6 +311,22 @@ def preparar_demanda(forecast):
 
     demanda = demanda[[id_cols[0]] + descriptivas + meses]
     demanda = demanda.sort_values(id_cols[0]).reset_index(drop=True)
+=======
+    tabla[COL_SKU] = tabla[COL_SKU].astype(str).str.strip()
+    for mes in meses:
+        tabla[mes] = pd.to_numeric(tabla[mes], errors="coerce").fillna(0.0)
+
+    demanda = tabla.groupby(COL_SKU, as_index=False)[meses].sum()
+
+    descriptivas = [c for c in (COL_DESC, COL_GRANEL) if c in tabla.columns]
+    if descriptivas:
+        etiquetas = (tabla[[COL_SKU] + descriptivas]
+                     .drop_duplicates(subset=[COL_SKU]))
+        demanda = demanda.merge(etiquetas, on=COL_SKU, how="left")
+
+    demanda = demanda[[COL_SKU] + descriptivas + meses]
+    demanda = demanda.sort_values(COL_SKU).reset_index(drop=True)
+>>>>>>> 8741c55b041814364d8bce9cbf31eaa247600d0d
     log(f"Demanda de acondicionamiento: {len(demanda)} SKU | "
         f"{len(meses)} meses ({meses[0]} a {meses[-1]})")
     return demanda, meses
@@ -282,6 +348,7 @@ def repartir_lineas(demanda, mes, md_por_linea, lote=TAMANO_LOTE):
     descargada. Esa regla es provisional: aqui es donde entrara la logica de
     residuos cuando se defina.
     """
+<<<<<<< HEAD
     skus_l2 = set(md_por_linea["L2"][id_cols[0]])
     skus_l4 = set(md_por_linea["L4"][id_cols[0]])
 
@@ -289,10 +356,20 @@ def repartir_lineas(demanda, mes, md_por_linea, lote=TAMANO_LOTE):
     bloque = bloque[bloque[mes] > 0]
     if bloque.empty:
         return pd.DataFrame(columns=[id_cols[4], id_cols[0], id_cols[1],
+=======
+    skus_l2 = set(md_por_linea["L2"][COL_SKU])
+    skus_l4 = set(md_por_linea["L4"][COL_SKU])
+
+    bloque = demanda[[COL_SKU, mes]].copy()
+    bloque = bloque[bloque[mes] > 0]
+    if bloque.empty:
+        return pd.DataFrame(columns=[COL_LINEA, COL_SKU, COL_DESC,
+>>>>>>> 8741c55b041814364d8bce9cbf31eaa247600d0d
                                      "jeringas", "lotes"])
 
     # La descripcion se arrastra solo como etiqueta para el reporte: todo el
     # reparto, la secuencia y las horas se calculan contra el SKU.
+<<<<<<< HEAD
     if id_cols[1] in demanda.columns:
         descripciones = (demanda.drop_duplicates(subset=[id_cols[0]])
                          .set_index(id_cols[0])[id_cols[1]].to_dict())
@@ -304,6 +381,19 @@ def repartir_lineas(demanda, mes, md_por_linea, lote=TAMANO_LOTE):
         log(f"Aviso {mes}: {len(sin_md)} SKU con demanda no estan en MD y "
             f"quedan fuera del plan de acondicionamiento ({sin_md[:5]}...)")
         bloque = bloque[~bloque[id_cols[0]].isin(sin_md)]
+=======
+    if COL_DESC in demanda.columns:
+        descripciones = (demanda.drop_duplicates(subset=[COL_SKU])
+                         .set_index(COL_SKU)[COL_DESC].to_dict())
+    else:
+        descripciones = {}
+
+    sin_md = sorted(set(bloque[COL_SKU]) - (skus_l2 | skus_l4))
+    if sin_md:
+        log(f"Aviso {mes}: {len(sin_md)} SKU con demanda no estan en MD y "
+            f"quedan fuera del plan de acondicionamiento ({sin_md[:5]}...)")
+        bloque = bloque[~bloque[COL_SKU].isin(sin_md)]
+>>>>>>> 8741c55b041814364d8bce9cbf31eaa247600d0d
 
     carga = {linea: 0.0 for linea in LINEAS_ACONDI}
     asignado = {linea: {} for linea in LINEAS_ACONDI}
@@ -335,12 +425,21 @@ def repartir_lineas(demanda, mes, md_por_linea, lote=TAMANO_LOTE):
             destino = min(LINEAS_ACONDI, key=lambda ln: carga[ln])
             anotar(destino, sku, residuo)
 
+<<<<<<< HEAD
     filas = [{id_cols[4]: linea, id_cols[0]: sku,
               id_cols[1]: descripciones.get(sku, ""),
               "jeringas": piezas, "lotes": piezas / lote}
              for linea in LINEAS_ACONDI
              for sku, piezas in asignado[linea].items()]
     reparto = pd.DataFrame(filas).sort_values([id_cols[4], id_cols[0]])
+=======
+    filas = [{COL_LINEA: linea, COL_SKU: sku,
+              COL_DESC: descripciones.get(sku, ""),
+              "jeringas": piezas, "lotes": piezas / lote}
+             for linea in LINEAS_ACONDI
+             for sku, piezas in asignado[linea].items()]
+    reparto = pd.DataFrame(filas).sort_values([COL_LINEA, COL_SKU])
+>>>>>>> 8741c55b041814364d8bce9cbf31eaa247600d0d
 
     log(f"Reparto {mes}: " + " | ".join(
         f"{ln} {carga[ln]:,.0f} jeringas ({carga[ln] / lote:,.2f} lotes)"
@@ -514,7 +613,11 @@ def secuenciar(skus, tabla_pesos, n_exacto=N_EXACTO):
 # ==============================================================================
 def _fila_vacia(nombre, horas=None):
     """Renglon separador del cronograma (fin de semana o bloque sin reloj)."""
+<<<<<<< HEAD
     return {"Nombre": nombre, id_cols[0]: "", "Secuencia": None, "Jeringas": None,
+=======
+    return {"Nombre": nombre, COL_SKU: "", "Secuencia": None, "Jeringas": None,
+>>>>>>> 8741c55b041814364d8bce9cbf31eaa247600d0d
             "Lotes": None, "Horas": horas, "Relation previa": None,
             "Fecha y hora de inicio": None,
             "Fecha y hora de finalizacion": None}
@@ -530,7 +633,11 @@ def generar_cronograma(reparto, linea, orden, tabla_pesos, fecha_inicio,
     07:00. El reloj es el de planning_produccion, para que los dos planes
     midan el calendario igual.
     """
+<<<<<<< HEAD
     bloque = reparto[reparto[id_cols[4]] == linea].set_index(id_cols[0])
+=======
+    bloque = reparto[reparto[COL_LINEA] == linea].set_index(COL_SKU)
+>>>>>>> 8741c55b041814364d8bce9cbf31eaa247600d0d
     mapa = mapa_relaciones(tabla_pesos)
     filas = []
     tiempo = pp._avanzar_tiempo(fecha_inicio, 0, esquema)
@@ -545,7 +652,11 @@ def generar_cronograma(reparto, linea, orden, tabla_pesos, fecha_inicio,
             filas.append(_fila_vacia(ETIQUETA_FIN_SEMANA))
             tiempo = pp._avanzar_tiempo(corte, 0, esquema)
         fin = pp._avanzar_tiempo(tiempo, horas, esquema)
+<<<<<<< HEAD
         filas.append({"Nombre": nombre, id_cols[0]: sku, "Secuencia": secuencia,
+=======
+        filas.append({"Nombre": nombre, COL_SKU: sku, "Secuencia": secuencia,
+>>>>>>> 8741c55b041814364d8bce9cbf31eaa247600d0d
                       "Jeringas": jeringas, "Lotes": lotes, "Horas": horas,
                       "Relation previa": relation_previa,
                       "Fecha y hora de inicio": tiempo,
@@ -558,10 +669,17 @@ def generar_cronograma(reparto, linea, orden, tabla_pesos, fecha_inicio,
         jeringas_totales = float(bloque.at[sku, "jeringas"])
         if jeringas_totales <= 0:
             continue
+<<<<<<< HEAD
         descripcion = (str(bloque.at[sku, id_cols[1]])
                        if id_cols[1] in bloque.columns
                        and pd.notna(bloque.at[sku, id_cols[1]])
                        and str(bloque.at[sku, id_cols[1]]).strip() != ""
+=======
+        descripcion = (str(bloque.at[sku, COL_DESC])
+                       if COL_DESC in bloque.columns
+                       and pd.notna(bloque.at[sku, COL_DESC])
+                       and str(bloque.at[sku, COL_DESC]).strip() != ""
+>>>>>>> 8741c55b041814364d8bce9cbf31eaa247600d0d
                        else sku)
 
         valor_relation = (None if previo is None
@@ -635,7 +753,11 @@ def planear_mes(demanda, mes, md_por_linea, pesos, inicio=None,
 
     secuencias, cronogramas = {}, {}
     for linea in LINEAS_ACONDI:
+<<<<<<< HEAD
         skus = list(reparto.loc[reparto[id_cols[4]] == linea, id_cols[0]])
+=======
+        skus = list(reparto.loc[reparto[COL_LINEA] == linea, COL_SKU])
+>>>>>>> 8741c55b041814364d8bce9cbf31eaa247600d0d
         if not skus:
             continue
         orden, cambios, suma, avisos = secuenciar(skus, pesos[linea])
@@ -692,11 +814,19 @@ def resumen_acondi(planes, esquemas=pp.ESQUEMAS):
                 disp, _ = pp.horas_disponibles(anio, numero, esquema, 0)
                 filas.append({
                     "Mes": mes,
+<<<<<<< HEAD
                     id_cols[4]: linea,
                     "Esquema": esquema,
                     "Fecha inicio": inicios.iloc[0] if len(inicios) else None,
                     "Fecha fin": fines.iloc[-1] if len(fines) else None,
                     "SKU": int(cro[id_cols[0]].replace("", pd.NA).nunique()),
+=======
+                    COL_LINEA: linea,
+                    "Esquema": esquema,
+                    "Fecha inicio": inicios.iloc[0] if len(inicios) else None,
+                    "Fecha fin": fines.iloc[-1] if len(fines) else None,
+                    "SKU": int(cro[COL_SKU].replace("", pd.NA).nunique()),
+>>>>>>> 8741c55b041814364d8bce9cbf31eaa247600d0d
                     "Jeringas": float(cro["Jeringas"].sum()),
                     "Lotes": float(cro["Lotes"].sum()),
                     "Horas acondicionamiento": horas_totales - horas_cambio,
@@ -707,7 +837,11 @@ def resumen_acondi(planes, esquemas=pp.ESQUEMAS):
                     "Horas disponibles": disp,
                     "Holgura horas": disp - horas_totales,
                     "Factible": disp - horas_totales >= 0})
+<<<<<<< HEAD
     columnas = ["Mes", id_cols[4], "Esquema", "Fecha inicio", "Fecha fin",
+=======
+    columnas = ["Mes", COL_LINEA, "Esquema", "Fecha inicio", "Fecha fin",
+>>>>>>> 8741c55b041814364d8bce9cbf31eaa247600d0d
                 "SKU", "Jeringas", "Lotes", "Horas acondicionamiento",
                 "Cambios de formato", "Horas cambio de formato",
                 "Relation total", "Horas requeridas", "Horas disponibles",
@@ -723,7 +857,11 @@ def tabla_reparto(planes):
         bloque.insert(0, "Mes", mes)
         filas.append(bloque)
     if not filas:
+<<<<<<< HEAD
         return pd.DataFrame(columns=["Mes", id_cols[4], id_cols[0], "jeringas",
+=======
+        return pd.DataFrame(columns=["Mes", COL_LINEA, COL_SKU, "jeringas",
+>>>>>>> 8741c55b041814364d8bce9cbf31eaa247600d0d
                                      "lotes"])
     return pd.concat(filas, ignore_index=True)
 
@@ -734,12 +872,21 @@ def tabla_secuencias(planes):
     for mes, plan in planes.items():
         for linea, secuencia in plan["secuencias"].items():
             for posicion, sku in enumerate(secuencia["orden"], start=1):
+<<<<<<< HEAD
                 filas.append({"Mes": mes, id_cols[4]: linea,
                               "Posicion": posicion, id_cols[0]: sku,
                               "Cambios de la linea": secuencia["cambios"],
                               "Relation total de la linea":
                                   secuencia["relation_total"]})
     return pd.DataFrame(filas, columns=["Mes", id_cols[4], "Posicion", id_cols[0],
+=======
+                filas.append({"Mes": mes, COL_LINEA: linea,
+                              "Posicion": posicion, COL_SKU: sku,
+                              "Cambios de la linea": secuencia["cambios"],
+                              "Relation total de la linea":
+                                  secuencia["relation_total"]})
+    return pd.DataFrame(filas, columns=["Mes", COL_LINEA, "Posicion", COL_SKU,
+>>>>>>> 8741c55b041814364d8bce9cbf31eaa247600d0d
                                         "Cambios de la linea",
                                         "Relation total de la linea"])
 

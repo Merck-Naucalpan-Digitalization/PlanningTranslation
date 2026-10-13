@@ -1,10 +1,18 @@
 """
 app_planning.py
 Ventana de escritorio para el proceso de Planning en tres pasos:
+<<<<<<< HEAD
     Pestana 1 - Balanceo          -> planning_balanceo.py
     Pestana 2 - Plan de produccion -> planning_produccion.py
     Pestana 3 - Acondicionamiento  -> planning_acondi.py
     
+=======
+
+    Pestana 1 - Balanceo          -> planning_balanceo.py
+    Pestana 2 - Plan de produccion -> planning_produccion.py
+    Pestana 3 - Acondicionamiento  -> planning_acondi.py
+
+>>>>>>> 8741c55b041814364d8bce9cbf31eaa247600d0d
 Aqui no hay reglas de negocio: todo el calculo vive en los modulos. Esta capa
 solo pide los archivos, arma los parametros, lanza el proceso en un hilo
 aparte para que la ventana no se congele y muestra la bitacora.

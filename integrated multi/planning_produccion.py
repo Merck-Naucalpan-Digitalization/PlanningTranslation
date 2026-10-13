@@ -32,6 +32,7 @@ from pathlib import Path
 import pandas as pd
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
+import planning_balanceo as pb
 
 # ---------------------------------------------------------------------------
 # Parametros de negocio (la app puede pasar otros)
@@ -47,9 +48,8 @@ ESQUEMA_OPCIONAL = "24/7"             # solo si las horas alcanzan
 ESQUEMAS = (ESQUEMA_BASE, ESQUEMA_OPCIONAL)
 LINEAS = ("DC1", "DC2")
 # Nombres que comparte con planning_balanceo.py
-COL_GRANEL = "Nombre granel"
-COL_DC = "DC"
-COL_SKU = "SKUMERCK"
+id_cols = pb.id_cols
+
 COL_DESC = "Description"
 HOJA_FORECAST = "Forecast balanceado"
 FORMATO_MES = "%m-%Y"
@@ -85,7 +85,7 @@ def mes_a_anio_mes(mes):
 
 def meses_disponibles(tabla):
     """Columnas de la tabla que son etiquetas de mes."""
-    fijas = {COL_GRANEL, COL_DC, COL_SKU, COL_DESC, "Units", "camp"}
+    fijas = {id_cols[3], id_cols[2], id_cols[0], COL_DESC, "Units", "camp"}
     meses = []
     for columna in tabla.columns:
         if columna in fijas:
@@ -128,12 +128,12 @@ def preparar_mes(tabla, mes, lote=TAMANO_LOTE, process_type="sing"):
 
     meses = meses_disponibles(tabla)
     if process_type=="mult":
-        columnas = [c for c in (COL_GRANEL, COL_DC, COL_SKU, COL_DESC, "camp") if c in tabla.columns]
+        columnas = [c for c in (id_cols[3], id_cols[2], id_cols[0], COL_DESC, "camp") if c in tabla.columns]
         df = tabla[columnas + meses].copy()
-        df[COL_DC] = df[COL_DC].astype(str).str.upper().str.strip()
+        df[id_cols[2]] = df[id_cols[2]].astype(str).str.upper().str.strip()
         for mes in meses:
             df[mes] = pd.to_numeric(df[mes], errors="coerce").fillna(0.0)
-        desconocidas = sorted(set(df[COL_DC]) - set(LINEAS))
+        desconocidas = sorted(set(df[id_cols[2]]) - set(LINEAS))
         if desconocidas:
             raise ValueError(f"Lineas no reconocidas en el forecast: {desconocidas}. "f"Solo se planean {list(LINEAS)}.")
         return df, meses
@@ -143,20 +143,20 @@ def preparar_mes(tabla, mes, lote=TAMANO_LOTE, process_type="sing"):
             raise ValueError(f"El mes '{mes}' no esta en el forecast balanceado "
                             f"({', '.join(map(str, meses)) or 'sin meses'}).")
         
-        columnas = [c for c in (COL_GRANEL, COL_DC, COL_SKU, COL_DESC, "camp")
+        columnas = [c for c in (id_cols[3], id_cols[2], id_cols[0], COL_DESC, "camp")
                     if c in tabla.columns]
         df = tabla[columnas + [mes]].copy()
         df = df.rename(columns={mes: "jeringas"})
         df["jeringas"] = pd.to_numeric(df["jeringas"], errors="coerce").fillna(0.0)
-        df[COL_DC] = df[COL_DC].astype(str).str.upper().str.strip()    
+        df[id_cols[2]] = df[id_cols[2]].astype(str).str.upper().str.strip()    
         # Los renglones en cero no ocupan linea, pero no se borra nada del origen.
         df = df[df["jeringas"] > 0].copy()
         df["lotes"] = df["jeringas"] / lote
         df["horas_produccion"] = df.apply(
-            lambda f: f["lotes"] * PROD_TIME[f[COL_DC]], axis=1)
+            lambda f: f["lotes"] * PROD_TIME[f[id_cols[2]]], axis=1)
         log(f"Mes {mes}: {len(df)} productos con demanda | "
             f"{df['jeringas'].sum():,.0f} jeringas | {df['lotes'].sum():,.2f} lotes")
-        desconocidas = sorted(set(df[COL_DC]) - set(LINEAS))
+        desconocidas = sorted(set(df[id_cols[2]]) - set(LINEAS))
         if desconocidas:
             raise ValueError(f"Lineas no reconocidas en el forecast: {desconocidas}. "
                             f"Solo se planean {list(LINEAS)}.")
@@ -218,8 +218,8 @@ def tabla_horas_disponibles(mes, horas_paro):
         for dc in LINEAS:
             _, detalle = horas_disponibles(anio, numero, esquema,
                                            horas_paro_de_linea(horas_paro, dc))
-            filas.append({COL_DC: dc, **detalle})
-    columnas = [COL_DC, "esquema", "horas_habiles",
+            filas.append({id_cols[2]: dc, **detalle})
+    columnas = [id_cols[2], "esquema", "horas_habiles",
                 "horas_fin_de_semana_disponibles", "horas_paro_programado",
                 "horas_disponibles_produccion"]
     tabla = pd.DataFrame(filas)
@@ -263,7 +263,7 @@ def armar_campanas(df, process_type="sing", meses=None):
 
     limite_campana = 345_600.0
     ordenado = df.sort_values(
-        by=[COL_GRANEL, COL_DC, "jeringas"],
+        by=[id_cols[3], id_cols[2], "jeringas"],
         ascending=[True, True, False],
         kind="stable",
     ).copy()
@@ -275,7 +275,7 @@ def armar_campanas(df, process_type="sing", meses=None):
     tolerancia = 1e-9
 
     for _, fila in ordenado.iterrows():
-        clave = (fila[COL_DC], fila[COL_GRANEL])
+        clave = (fila[id_cols[2]], fila[id_cols[3]])
         restantes = float(fila["jeringas"])
 
         # El cambio de línea o de granel siempre cierra la campaña anterior.
@@ -297,7 +297,7 @@ def armar_campanas(df, process_type="sing", meses=None):
             nueva_fila["jeringas"] = tramo
             nueva_fila["lotes"] = tramo / TAMANO_LOTE
             nueva_fila["horas_produccion"] = (
-                nueva_fila["lotes"] * PROD_TIME[nueva_fila[COL_DC]]
+                nueva_fila["lotes"] * PROD_TIME[nueva_fila[id_cols[2]]]
             )
             nueva_fila["campana"] = campana
             filas.append(nueva_fila)
@@ -318,7 +318,7 @@ def horas_por_linea(df):
     """Horas de produccion y de limpieza que pide cada linea."""
     filas = []
     for dc in LINEAS:
-        bloque = df[df[COL_DC] == dc]
+        bloque = df[df[id_cols[2]] == dc]
         if bloque.empty:
             continue
         campanas = bloque["campana"].nunique()
@@ -326,7 +326,7 @@ def horas_por_linea(df):
         horas_prod = float(bloque["horas_produccion"].sum())
         horas_limp = limpiezas * CLEAN_TIME
         filas.append({
-            COL_DC: dc,
+            id_cols[2]: dc,
             "productos": len(bloque),
             "jeringas": float(bloque["jeringas"].sum()),
             "lotes": float(bloque["lotes"].sum()),
@@ -359,7 +359,7 @@ def evaluar_esquema(df, mes, esquema, horas_paro):
     resumen = horas_por_linea(df)
     filas = []
     for _, fila in resumen.iterrows():
-        dc = fila[COL_DC]
+        dc = fila[id_cols[2]]
         # Cada linea descuenta SU paro, no la suma de las dos.
         disp, _ = horas_disponibles(anio, numero, esquema,
                                     horas_paro_de_linea(horas_paro, dc))
@@ -385,8 +385,8 @@ def trasladar_para_ajustar(df, mes, esquema, horas_paro=None):
     """
     df = df.copy()
     movimientos = []
-    skus_en_ambas = {sku for sku, grupo in df.groupby(COL_SKU)
-                     if grupo[COL_DC].nunique() > 1}
+    skus_en_ambas = {sku for sku, grupo in df.groupby(id_cols[0])
+                     if grupo[id_cols[2]].nunique() > 1}
     if not skus_en_ambas:
         return df, pd.DataFrame(), evaluar_esquema(armar_campanas(df), mes, esquema, horas_paro)
 
@@ -398,9 +398,9 @@ def trasladar_para_ajustar(df, mes, esquema, horas_paro=None):
 
         movido = False
         for _, fila in saturadas.sort_values("holgura_horas").iterrows():
-            origen = fila[COL_DC]
+            origen = fila[id_cols[2]]
             destino = "DC2" if origen == "DC1" else "DC1"
-            libre = estado.loc[estado[COL_DC] == destino, "holgura_horas"]
+            libre = estado.loc[estado[id_cols[2]] == destino, "holgura_horas"]
             holgura_destino = float(libre.iloc[0]) if len(libre) else None
             if holgura_destino is None:
                 # La otra linea no tiene carga: su holgura es todo el mes.
@@ -410,8 +410,8 @@ def trasladar_para_ajustar(df, mes, esquema, horas_paro=None):
                     horas_paro_de_linea(horas_paro, destino))
             if holgura_destino <= 0:
                 continue
-            candidatos = df[(df[COL_DC] == origen)
-                            & (df[COL_SKU].isin(skus_en_ambas))].copy()
+            candidatos = df[(df[id_cols[2]] == origen)
+                            & (df[id_cols[0]].isin(skus_en_ambas))].copy()
             if candidatos.empty:
                 continue
             # Las horas cambian al cruzar de linea: 27 h en DC1, 24 h en DC2.
@@ -426,11 +426,11 @@ def trasladar_para_ajustar(df, mes, esquema, horas_paro=None):
                        else candidatos.nlargest(1, "horas_produccion"))
             idx = elegido.index[0]
 
-            df.at[idx, COL_DC] = destino
+            df.at[idx, id_cols[2]] = destino
             df.at[idx, "horas_produccion"] = float(elegido["horas_en_destino"].iloc[0])
             movimientos.append({
-                COL_SKU: df.at[idx, COL_SKU],
-                COL_GRANEL: df.at[idx, COL_GRANEL],
+                id_cols[0]: df.at[idx, id_cols[0]],
+                id_cols[3]: df.at[idx, id_cols[3]],
                 "de": origen,
                 "a": destino,
                 "jeringas": df.at[idx, "jeringas"],
@@ -438,7 +438,7 @@ def trasladar_para_ajustar(df, mes, esquema, horas_paro=None):
                 "horas_en_destino": df.at[idx, "horas_produccion"],
                 "motivo": f"{origen} excedia por {faltan:,.1f} h en {esquema}",
             })
-            log(f"Traslado {esquema}: {df.at[idx, COL_SKU]} de {origen} a {destino} "
+            log(f"Traslado {esquema}: {df.at[idx, id_cols[0]]} de {origen} a {destino} "
                 f"({df.at[idx, 'jeringas']:,.0f} jeringas)")
             movido = True
             break
@@ -504,7 +504,7 @@ def generar_cronograma(df, dc, fecha_inicio, esquema, lote=TAMANO_LOTE):
     """
     df = df.copy()
     df["orden"] = range(len(df))
-    bloque = df[df[COL_DC] == dc].sort_values("orden")
+    bloque = df[df[id_cols[2]] == dc].sort_values("orden")
     filas = []
     tiempo = _avanzar_tiempo(fecha_inicio, 0, esquema)
 
@@ -556,7 +556,7 @@ def generar_cronograma(df, dc, fecha_inicio, esquema, lote=TAMANO_LOTE):
                         reinicio = _avanzar_tiempo(corte, 0, esquema)
                         filas.append({
                             "Nombre": "Fin de semana",
-                            COL_SKU: "",
+                            id_cols[0]: "",
                             "Campana": None,
                             "Jeringas": None,
                             "Lotes": None,
@@ -573,8 +573,8 @@ def generar_cronograma(df, dc, fecha_inicio, esquema, lote=TAMANO_LOTE):
 
                 fin = _avanzar_tiempo(tiempo, horas_tramo, esquema)
                 filas.append({
-                    "Nombre": fila[COL_GRANEL],
-                    COL_SKU: fila[COL_SKU],
+                    "Nombre": fila[id_cols[3]],
+                    id_cols[0]: fila[id_cols[0]],
                     "Campana": campana,
                     "Jeringas": jeringas_tramo,
                     "Lotes": jeringas_tramo / lote,
@@ -607,7 +607,7 @@ def generar_cronograma(df, dc, fecha_inicio, esquema, lote=TAMANO_LOTE):
 
         filas.append({
             "Nombre": "Limpieza",
-            COL_SKU: "",
+            id_cols[0]: "",
             "Campana": None,
             "Jeringas": None,
             "Lotes": None,
@@ -620,7 +620,7 @@ def generar_cronograma(df, dc, fecha_inicio, esquema, lote=TAMANO_LOTE):
         if esquema == ESQUEMA_BASE and tiempo > fin_limpieza:
             filas.append({
                 "Nombre": "Fin de semana",
-                COL_SKU: "",
+                id_cols[0]: "",
                 "Campana": None,
                 "Jeringas": None,
                 "Lotes": None,
@@ -629,7 +629,7 @@ def generar_cronograma(df, dc, fecha_inicio, esquema, lote=TAMANO_LOTE):
                 "Fecha y hora de finalizacion": None,
             })
 
-    return pd.DataFrame(filas, columns=["Nombre", COL_SKU, "Campana", "Jeringas", "Lotes", "Horas","Fecha y hora de inicio", "Fecha y hora de finalizacion"])
+    return pd.DataFrame(filas, columns=["Nombre", id_cols[0], "Campana", "Jeringas", "Lotes", "Horas","Fecha y hora de inicio", "Fecha y hora de finalizacion"])
 
 # --- Colores para el cronograma: alternan por bloque de campana ---
 COLOR_BLOQUE_A = "E2EFDA"   # verde muy claro
@@ -691,10 +691,10 @@ def leer_horas_paro(ruta_paros=None, hoja_paros=None, mes=None, tabla=None):
     if tabla is None or tabla.empty:
         return vacio
 
-    faltan = [c for c in ("Mes", COL_DC, "Hrs") if c not in tabla.columns]
+    faltan = [c for c in ("Mes", id_cols[2], "Hrs") if c not in tabla.columns]
     if faltan:
         raise ValueError(f"La hoja de paros no tiene las columnas {faltan}. "
-                         f"Se esperan 'Mes', '{COL_DC}' y 'Hrs'.")
+                         f"Se esperan 'Mes', '{id_cols[2]}' y 'Hrs'.")
 
     etiquetas = pd.to_datetime(tabla["Mes"], errors="coerce").dt.strftime(FORMATO_MES)
     horas = pd.to_numeric(tabla["Hrs"], errors="coerce").fillna(0.0)
@@ -705,7 +705,7 @@ def leer_horas_paro(ruta_paros=None, hoja_paros=None, mes=None, tabla=None):
 
     resultado = dict(vacio)
     for dc in LINEAS:
-        resultado[dc] = float(horas[filtro & (tabla[COL_DC] == dc)].sum())
+        resultado[dc] = float(horas[filtro & (tabla[id_cols[2]] == dc)].sum())
     return resultado
 
 
@@ -745,7 +745,7 @@ def armar_planes_resumen(planes_por_mes, tabla_paros=None):
                 limpieza = cro.loc[cro["Nombre"] == "Limpieza", "Horas"].sum()
                 filas.append({
                     "Mes": mes,
-                    COL_DC: dc,
+                    id_cols[2]: dc,
                     "Esquema": esquema,
                     "Fecha inicio": inicios.iloc[0] if len(inicios) else None,
                     "Fecha fin": fines.iloc[-1] if len(fines) else None,
@@ -754,7 +754,7 @@ def armar_planes_resumen(planes_por_mes, tabla_paros=None):
                     "Horas paro": paros.get(dc, 0.0),
                 })
     return pd.DataFrame(filas, columns=[
-        "Mes", COL_DC, "Esquema", "Fecha inicio", "Fecha fin",
+        "Mes", id_cols[2], "Esquema", "Fecha inicio", "Fecha fin",
         "Horas produccion", "Horas limpieza", "Horas paro"])
 
 
@@ -786,7 +786,7 @@ def plan_de_un_mes(forecast, mes, horas_paro, lote=TAMANO_LOTE, inicios=None):
         df = armar_campanas(df)
         if not bool(estado["factible"].all()):
             faltan = estado.loc[~estado["factible"]]
-            detalle = " | ".join(f"{f[COL_DC]} excede por "
+            detalle = " | ".join(f"{f[id_cols[2]]} excede por "
                                  f"{-f['holgura_horas']:,.1f} h"
                                  for _, f in faltan.iterrows())
             if esquema == ESQUEMA_OPCIONAL:
@@ -800,7 +800,7 @@ def plan_de_un_mes(forecast, mes, horas_paro, lote=TAMANO_LOTE, inicios=None):
                            for dc in LINEAS}
         cronogramas = {dc: generar_cronograma(df, dc, inicios_esquema[dc],
                                               esquema)
-                       for dc in LINEAS if (df[COL_DC] == dc).any()}
+                       for dc in LINEAS if (df[id_cols[2]] == dc).any()}
         planes[esquema] = {"detalle": df, "movimientos": movimientos,
                            "estado": estado, "cronogramas": cronogramas,
                            "inicios": inicios_esquema}
@@ -895,7 +895,7 @@ def armar_resumen(mes, horas_paro, planes, inicios, lote, origen):
         estado = plan["estado"]
         for _, f in estado.iterrows():
             filas.append((
-                f"Plan {esquema} - {f[COL_DC]}",
+                f"Plan {esquema} - {f[id_cols[2]]}",
                 f"{f['horas_requeridas']:,.1f} h de {f['horas_disponibles']:,.1f} h "
                 f"| {f['campanas']} campanas | holgura {f['holgura_horas']:,.1f} h"))
         filas.append((f"Traslados {esquema}", str(len(plan["movimientos"]))))
@@ -943,7 +943,7 @@ def exportar_excel(ruta_salida, resumen, planes_resumen, planes):
             copia.insert(0, "esquema", esquema)
             traslados.append(copia)
     tabla_traslados = (pd.concat(traslados, ignore_index=True) if traslados
-                       else pd.DataFrame(columns=["esquema", COL_SKU, COL_GRANEL,
+                       else pd.DataFrame(columns=["esquema", id_cols[0], id_cols[3],
                                                   "de", "a", "jeringas", "lotes",
                                                   "horas_en_destino", "motivo"]))
 
@@ -1029,7 +1029,7 @@ def ejecutar(origen, ruta_salida, mes=None, horas_paro=None,
 
         if not bool(estado["factible"].all()):
             faltan = estado.loc[~estado["factible"]]
-            detalle = " | ".join(f"{f[COL_DC]} excede por "
+            detalle = " | ".join(f"{f[id_cols[2]]} excede por "
                                 f"{-f['holgura_horas']:,.1f} h"
                                 for _, f in faltan.iterrows())
             if esquema == ESQUEMA_OPCIONAL:
@@ -1042,12 +1042,12 @@ def ejecutar(origen, ruta_salida, mes=None, horas_paro=None,
         inicios_esquema = {dc: _avanzar_tiempo(inicios[dc], 0, esquema) for dc in LINEAS}   # <-- linea nueva
         
         cronogramas = {dc: generar_cronograma(df, dc, inicios_esquema[dc], esquema)
-                    for dc in LINEAS if (df[COL_DC] == dc).any()}
+                    for dc in LINEAS if (df[id_cols[2]] == dc).any()}
         planes[esquema] = {"detalle": df, "movimientos": movimientos,
                         "estado": estado, "cronogramas": cronogramas,
                         "inicios": inicios_esquema}   # <-- se guarda para el resumen
         log(f"Plan {esquema} listo | " + " | ".join(
-            f"{f[COL_DC]}: {f['horas_requeridas']:,.1f}/{f['horas_disponibles']:,.1f} h"
+            f"{f[id_cols[2]]}: {f['horas_requeridas']:,.1f}/{f['horas_disponibles']:,.1f} h"
             for _, f in estado.iterrows()))
 
     generados = {e: p for e, p in planes.items() if p is not None}
